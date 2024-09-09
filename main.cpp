@@ -21,7 +21,9 @@
 
 using namespace std;
 
-int *model;
+int *model;                          // 记录变量取值
+int *model_flag;                     // 记录确定变量
+int *clause_flag;                    // 记录子句是否可跳过
 IntVector *clauses;                  // clauses[num_clauses],子句集
 PtrVector *clauses_contain_positive; // clauses_contain_positive[num_vars+1]每个正字面所在的子句的集
 PtrVector *clauses_contain_negative; // clauses_contain_negative[num_vars+1]每个负字面所在的子句的集
@@ -62,8 +64,10 @@ void Create_CNF_From_File(const char *filename)
     cnf >> aux >> num_vars >> num_clauses;
 
     clauses = (IntVector *)malloc(num_clauses * sizeof(IntVector)); // 根据子句数量，指定子句集大小
+    clause_flag = (int *)malloc(num_clauses * sizeof(int));         // 子句确定标志初始化为0
     for (int i = 0; i < num_clauses; ++i) {
         Init_IntVector(&clauses[i]); // 初始化子句
+        clause_flag[i] = 0;
     }
 
     // 根据变元数量初始化大小
@@ -90,9 +94,11 @@ void Create_CNF_From_File(const char *filename)
         }
     }
 
-    model = (int *)malloc((num_vars + 1) * sizeof(int)); // 变量初始化为未确定
+    model = (int *)malloc((num_vars + 1) * sizeof(int));      // 变量初始化为未确定
+    model_flag = (int *)malloc((num_vars + 1) * sizeof(int)); // 变量确定标志初始化为0
     for (int i = 1; i <= num_vars; ++i) {
         model[i] = UNDEFINED;
+        model_flag[i] = 0;
     }
 
     idx_next_literal = 0; // 初始化指向下一个从堆栈中传播的字面
@@ -149,7 +155,71 @@ void Update_Weights(IntVector clause)
     }
 }
 
-bool Propagatable()
+void Exit_With_Stat(bool is_sat)
+{
+    end_time = clock();
+
+    if (is_sat) {
+        Verify();
+        // Answer_Board();
+
+        cout << "s 1" << endl
+             << "v";
+
+    } else {
+        cout << "s 0" << endl
+             << "v";
+    }
+    for (int i = 1; i <= num_vars; ++i) {
+        cout << " " << (model[i] ? i : -i);
+    }
+    cout << endl
+         << "t " << end_time - start_time << endl;
+    exit(0);
+}
+
+int Get_Next_Decision_Literal()
+{
+    // 遍历找到最活跃的字面（无论正/负）
+    double max_weight = 0.0;
+    int max_weight_literal = 0;
+    for (int i = 1; i <= num_vars; ++i) {
+        // 仅处理未确定变量
+        if (model[i] == UNDEFINED) {
+            if (positive_literal_weights[i] >= max_weight) {
+                max_weight = positive_literal_weights[i];
+                max_weight_literal = i;
+            }
+            if (negative_literal_weights[i] >= max_weight) {
+                max_weight = negative_literal_weights[i];
+                max_weight_literal = -i;
+            }
+        }
+    }
+    // 返回最活跃的变量，或如果没有未确定变量，则返回0
+    return max_weight_literal;
+}
+
+void Verify()
+{
+    for (int i = 0; i < num_clauses; i++) {
+        bool exist_true_literal = false; // 子句中是否存在真字面，如果存在，则该子句为真，停止遍历
+        for (int j = 0; !exist_true_literal && j < clauses[i].size; ++j) {
+            exist_true_literal = (Eval_Literal(clauses[i].data[j]) == TRUE);
+        }
+        // 如果子句中不存在真字面，则该子句为假，则子句集UNSAT，model不成立
+        if (!exist_true_literal) {
+            cout << "ERROR: UNSAT:\n";
+            for (int j = 0; j < clauses[i].size; j++) {
+                cout << clauses[i].data[j] << " ";
+            }
+            cout << endl;
+            exit(1);
+        }
+    }
+}
+
+bool PropagateToConflict()
 {
     while (idx_next_literal <= backtrack_stack.top) {
         int literal_p = backtrack_stack.data[idx_next_literal++];
@@ -161,7 +231,7 @@ bool Propagatable()
             int num_undef_literals = 0;      // 记录未确定字面数
             int last_undef_literal = 0;      // 记录最后一个未确定字面
 
-            // 遍历子句字面
+            // 遍历子句字面，判断是否存在真字面，记录未确定字面数和最后一个未确定字面
             for (int k = 0; !exist_true_literal && k < clause.size; ++k) {
                 int value = Eval_Literal(clause.data[k]); // 取出字面的值
                 if (value == TRUE) {                      // 如果存在某个字面为真
@@ -203,87 +273,10 @@ void Backtrack()
     Correct_Literal(-literal);                  // DECISION_MARK后的第一个字面反转
 }
 
-// void Backtrack() {
-//     int p = backtrack_stack.top; // 回溯栈顶指针
-//     while (backtrack_stack.data[backtrack_stack.top] != DECISION_MARK) {
-//         int literal = backtrack_stack.data[backtrack_stack.top];
-//         model[Abs(literal)] = UNDEFINED;
-//         pop_IntStack(&backtrack_stack);
-//     }
-//     pop_IntStack(&backtrack_stack);
-//     decision_level--;
-//     Correct_Literal(-backtrack_stack.data[backtrack_stack.top]);
-// }
-
-
-int Get_Next_Decision_Literal()
-{
-    // 遍历找到最活跃的字面（无论正/负）
-    double max_activity = 0.0;
-    int max_activity_literal = 0;
-    for (int i = 1; i <= num_vars; ++i) {
-        // 仅处理未确定变量
-        if (model[i] == UNDEFINED) {
-            if (positive_literal_weights[i] >= max_activity) {
-                max_activity = positive_literal_weights[i];
-                max_activity_literal = i;
-            }
-            if (negative_literal_weights[i] >= max_activity) {
-                max_activity = negative_literal_weights[i];
-                max_activity_literal = -i;
-            }
-        }
-    }
-    // 返回最活跃的变量，或如果没有未确定变量，则返回0
-    return max_activity_literal;
-}
-
-void Verify()
-{
-    for (int i = 0; i < num_clauses; i++) {
-        bool exist_true_literal = false; // 子句中是否存在真字面，如果存在，则该子句为真，停止遍历
-        for (int j = 0; !exist_true_literal && j < clauses[i].size; ++j) {
-            exist_true_literal = (Eval_Literal(clauses[i].data[j]) == TRUE);
-        }
-        // 如果子句中不存在真字面，则该子句为假，则子句集UNSAT，model不成立
-        if (!exist_true_literal) {
-            cout << "ERROR: UNSAT:\n";
-            for (int j = 0; j < clauses[i].size; j++) {
-                cout << clauses[i].data[j] << " ";
-            }
-            cout << endl;
-            exit(1);
-        }
-    }
-}
-
-void Exit_With_Stat(bool is_sat)
-{
-    end_time = clock();
-
-    if (is_sat) {
-        Verify();
-        Answer_Board();
-
-        cout << "s 1" << endl
-             << "v";
-
-    } else {
-        cout << "s 0" << endl
-             << "v";
-    }
-    for (int i = 1; i <= num_vars; ++i) {
-        cout << " " << (model[i] ? i : -i);
-    }
-    cout << endl
-         << "t " << end_time - start_time << endl;
-    exit(0);
-}
-
 void DPLL()
 {
     while (true) {
-        while (Propagatable()) {
+        while (PropagateToConflict()) {
             if (decision_level == 0) {
                 Exit_With_Stat(false);
             }
@@ -308,10 +301,21 @@ void Preprocess_Unit_Clause()
     for (int i = 0; i < num_clauses; i++) {
         if (clauses[i].size == 1) {
             int literal_unit = clauses[i].data[0];
-            if (Eval_Literal(literal_unit) == UNDEFINED) {
-                Correct_Literal(literal_unit);
-            } else if (Eval_Literal(literal_unit) == FALSE) {
+            if (Eval_Literal(literal_unit) == UNDEFINED) {    // 该字面未确定
+                Correct_Literal(literal_unit);                // 将字面设为真
+                model_flag[Abs(literal_unit)] = 1;            // 记录该字面确定
+            } else if (Eval_Literal(literal_unit) == FALSE) { // 该字面为假，说明出现过相反的字面
                 Exit_With_Stat(false);
+            }
+        }
+    }
+
+    for (int i_clause = 0; i_clause < num_clauses; i_clause++) {
+        IntVector clause = clauses[i_clause];
+        for (int i_literal = 0; i_literal < clause.size; i_literal++) {
+            int literal = clause.data[i_literal];
+            if (model_flag[Abs(literal)] == 1) { // 该字面已确定，则该子句成立，标记为可跳过
+                clause_flag[i_clause] = 1;
             }
         }
     }
@@ -550,8 +554,6 @@ void Answer_Board()
 
 int main(int argc, char *argv[])
 {
-
-    
 
     // Sudoku
     // Read_Board_From_File("tstsudoku.txt");

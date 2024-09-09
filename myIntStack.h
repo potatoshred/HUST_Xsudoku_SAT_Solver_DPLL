@@ -5,6 +5,8 @@
 #define INITIAL_CAPACITY 32
 #define CAPACITY_INCREMENT 32 // 扩容的容量增量
 
+int _debug_IntStack = 0;
+
 typedef struct IntStack {
     int *data;
     int top;
@@ -39,15 +41,25 @@ void push_IntStack(IntStack *stack, int value)
         stack->data = (int *)realloc(stack->data, stack->capacity * sizeof(int));
     }
     stack->data[++stack->top] = value;
+
+    // debug
+    if (_debug_IntStack) {
+        debug_IntStack(stack);
+    }
 }
 
-int pop_IntStack(IntStack *stack)
+void pop_IntStack(IntStack *stack)
 {
     if (is_empty_IntStack(stack)) {
         printf("IntStack is empty\n");
         exit(1);
     }
-    return stack->data[stack->top--];
+    stack->data[stack->top--];
+
+    // debug
+    if (_debug_IntStack) {
+        debug_IntStack(stack);
+    }
 }
 
 /**
@@ -68,4 +80,12 @@ void free_IntStack(IntStack *stack)
 {
     free(stack->data);
     free(stack);
+}
+
+void debug_IntStack(IntStack *stack)
+{
+    for (int i = 0; i <= stack->top; i++) {
+        printf("%d ", stack->data[i]);
+    }
+    printf("\n");
 }
