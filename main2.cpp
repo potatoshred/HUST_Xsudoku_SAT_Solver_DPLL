@@ -225,7 +225,13 @@ bool PropagateToConflict()
         int literal_p = backtrack_stack.data[idx_next_literal++];
         IntVector clauses_p = (literal_p > 0) ? clauses_contain_negative[Abs(literal_p)] : clauses_contain_positive[Abs(literal_p)];
 
+        // 遍历当前字面所在的子句
         for (int i = 0; i < clauses_p.size; i++) {
+            // 跳过已确定子句
+            // if (clause_flag[clauses_p.data[i]]) {
+            //     continue;
+            // }
+
             IntVector clause = clauses[clauses_p.data[i]];
             bool exist_true_literal = false; // 记录是否存在真字面
             int num_undef_literals = 0;      // 记录未确定字面数
@@ -258,41 +264,43 @@ bool PropagateToConflict()
 
 void Backtrack()
 {
-    int p = backtrack_stack.top; // 回溯栈顶指针
     int literal = 0;
-    while (backtrack_stack.data[p] != DECISION_MARK) {
-        literal = backtrack_stack.data[p]; // 取出字面
-        model[Abs(literal)] = UNDEFINED;   // 回溯时，将字面设为未确定
-        pop_IntStack(&backtrack_stack);    // 回溯栈弹出字面
-        p--;                               // 回溯栈指针-1
+    while (peek_IntStack(&backtrack_stack) != DECISION_MARK) { // 回溯到DECISION_MARK后的字面
+        literal = peek_IntStack(&backtrack_stack);             // 取出栈顶字面
+        model[Abs(literal)] = UNDEFINED;                       // 回溯时，将字面设为未确定
+        pop_IntStack(&backtrack_stack);                        // 回溯栈弹出字面
     }
 
-    pop_IntStack(&backtrack_stack);             // 回溯栈弹出DECISION_MARK
+    pop_IntStack(&backtrack_stack);             // 弹出DECISION_MARK
     decision_level--;                           // 决策等级-1
     idx_next_literal = backtrack_stack.top + 1; // 指向下一个从堆栈中传播的字面
     Correct_Literal(-literal);                  // DECISION_MARK后的第一个字面反转
+    // 此时，该字面的决策反转，且没有DECISION_MARK，
+    // 若之后仍有冲突，则下次回溯会回到更早的DECISION_MARK
 }
 
 void DPLL()
 {
-    while (true) {
-        while (PropagateToConflict()) {
-            if (decision_level == 0) {
-                Exit_With_Stat(false);
+    while (true) {// 模拟递归调用， 用回溯栈记录决策路径，
+
+        while (PropagateToConflict()) { // 冲突，则进行回溯
+            if (decision_level == 0) {  // 冲突，且决策等级为0，代表啥都没干，
+                Exit_With_Stat(false);  // 则证明无解，退出
             }
             Backtrack();
         }
 
-        int literal_next = Get_Next_Decision_Literal();
-        if (literal_next == 0) {
-            Exit_With_Stat(true);
+        // 当前model没有冲突，则进行下一层决策
+        int literal_next = Get_Next_Decision_Literal(); // 分裂策略
+
+        if (literal_next == 0) {  // 如此，则代表所有字面均为已确定
+            Exit_With_Stat(true); // 解找到，退出
         }
-
-        decision_level++;
-
+        
+        decision_level++; // 决策等级+1
         idx_next_literal++;
         push_IntStack(&backtrack_stack, DECISION_MARK);
-        Correct_Literal(literal_next);
+        Correct_Literal(literal_next); // 将字面设为真
     }
 }
 

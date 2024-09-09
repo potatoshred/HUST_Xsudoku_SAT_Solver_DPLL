@@ -5,13 +5,21 @@
 #define INITIAL_CAPACITY 32
 #define CAPACITY_INCREMENT 32 // 扩容的容量增量
 
-int _debug_IntStack = 0;
+#define __DEBUG_INTSTACK__ 0 // 调试开关
 
 typedef struct IntStack {
     int *data;
     int top;
     int capacity;
 } IntStack;
+
+void debug_IntStack(IntStack *stack)
+{
+    for (int i = 0; i <= stack->top; i++) {
+        printf("%d ", stack->data[i]);
+    }
+    printf("\n");
+}
 
 IntStack *create_IntStack()
 {
@@ -43,7 +51,7 @@ void push_IntStack(IntStack *stack, int value)
     stack->data[++stack->top] = value;
 
     // debug
-    if (_debug_IntStack) {
+    if (__DEBUG_INTSTACK__) {
         debug_IntStack(stack);
     }
 }
@@ -57,7 +65,7 @@ void pop_IntStack(IntStack *stack)
     stack->data[stack->top--];
 
     // debug
-    if (_debug_IntStack) {
+    if (__DEBUG_INTSTACK__) {
         debug_IntStack(stack);
     }
 }
@@ -82,10 +90,3 @@ void free_IntStack(IntStack *stack)
     free(stack);
 }
 
-void debug_IntStack(IntStack *stack)
-{
-    for (int i = 0; i <= stack->top; i++) {
-        printf("%d ", stack->data[i]);
-    }
-    printf("\n");
-}
