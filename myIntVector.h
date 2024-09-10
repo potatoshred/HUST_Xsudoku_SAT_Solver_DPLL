@@ -71,21 +71,6 @@ void pop_back_IntVector(IntVector *vec)
 }
 
 /**
- * 获取IntVector中指定位置的元素。
- * @param vec IntVector对象指针
- * @param index 要获取元素的位置
- * @return int 元素的值
- */
-int at_IntVector(IntVector *vec, int index)
-{
-    if (index < 0 || index >= vec->size) {
-        printf("IntVector ERROR: Index out of bounds\n");
-        exit(1);
-    }
-    return vec->data[index];
-}
-
-/**
  * 释放IntVector对象。
  * @param vec IntVector对象指针
  * @return void

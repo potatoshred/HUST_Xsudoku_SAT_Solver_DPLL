@@ -36,11 +36,17 @@ double *positive_literal_weights; // 正字面权重
 double *negative_literal_weights; // 负字面权重
 clock_t start_time, end_time;     // 计时器
 
+bool is_sudoku = false; // 是否为数独
 char board[9][9] = {0}; // 数独
 
 void Print_Board();
 void Answer_Board();
 void Verify();
+void Update_Mask(int literal, bool is_push);
+int IJK_To_Literal(int row, int col, int num);
+int Literal_To_IJK(int literal, int *row, int *col, int *num);
+void Exit_With_Stat(bool is_sat);
+void Export_Solution_Res_File(bool is_sat);
 
 int Abs(int literal)
 {
@@ -60,8 +66,8 @@ void Create_CNF_From_File(const char *filename)
     }
 
     // p行 "cnf num_vars num_clauses"
-    string aux; // 临时变量
-    cnf >> aux >> num_vars >> num_clauses;
+    string _cnf; // 临时变量
+    cnf >> _cnf >> num_vars >> num_clauses;
 
     clauses = (IntVector *)malloc(num_clauses * sizeof(IntVector));  // 根据子句数量，指定子句集大小
     clause_mask = (int *)calloc(num_clauses, sizeof(int));           // 子句确定标志初始化为0
@@ -129,20 +135,105 @@ int Eval_Literal(int literal)
 void Correct_Literal(int literal)
 {
     push_IntStack(&backtrack_stack, literal);
+    // debug
+    // int a, b, c;
+    // printf("CorrectLiteral: %04d\n", Literal_To_IJK(literal, &a, &b, &c));
+    // printf("%16s", "Preprocess: ");
+    // debug_IntStack(&backtrack_stack);
     model[Abs(literal)] = (literal > 0) ? TRUE : FALSE;
 
-    for (int i = 0; i < clauses_contain_positive[Abs(literal)].size; i++) {
-        int clause = clauses_contain_positive[Abs(literal)].data[i];
-        num_undef_each_clause[clause]--;
-        if (literal > 0) {
-            clause_mask[clause]++;
+    bool is_push = true;
+    Update_Mask(literal, is_push);
+
+    // 如果是数独，且可确定一个格子(literal>0)，则可更新行、列、块的候选值
+    // 所在行、列、块、对角线对应的相同值为FALSE
+    // 自身的其他值为FALSE
+    if (is_sudoku && literal > 0) {
+        // 所在行、列
+        int row;
+        int col;
+        int num;
+        Literal_To_IJK(literal, &row, &col, &num);
+
+        // 排除Cell其他候选值
+        for (int i = 1; i <= 9; i++) {
+            if (i == num) { // 跳过本身
+                continue;
+            }
+            int literal_tmp = IJK_To_Literal(row, col, i);
+            if (model[Abs(literal_tmp)] == UNDEFINED) {
+                Correct_Literal(-literal_tmp);
+            } else if (Eval_Literal(literal_tmp) == TRUE) {
+                Exit_With_Stat(false);
+            }
         }
-    }
-    for (int i = 0; i < clauses_contain_negative[Abs(literal)].size; i++) {
-        int clause = clauses_contain_negative[Abs(literal)].data[i];
-        num_undef_each_clause[clause]--;
-        if (literal < 0) {
-            clause_mask[clause]++;
+
+        // 排除所在行
+        for (int i = 0; i < 9; i++) {
+            if (i == col) { // 跳过本身
+                continue;
+            }
+            int literal_tmp = IJK_To_Literal(row, i, num);
+            if (model[Abs(literal_tmp)] == UNDEFINED) {
+                Correct_Literal(-literal_tmp);
+            } else if (Eval_Literal(literal_tmp) == TRUE) {
+                Exit_With_Stat(false);
+            }
+        }
+        // 排除所在列
+        for (int i = 0; i < 9; i++) {
+            if (i == row) { // 跳过本身
+                continue;
+            }
+            int literal_tmp = IJK_To_Literal(i, col, num);
+            if (model[Abs(literal_tmp)] == UNDEFINED) {
+                Correct_Literal(-literal_tmp);
+            } else if (Eval_Literal(literal_tmp) == TRUE) {
+                Exit_With_Stat(false);
+            }
+        }
+        // 排除所在块
+        int block_row = row / 3;
+        int block_col = col / 3;
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                int literal_tmp = IJK_To_Literal(i + block_row * 3, j + block_col * 3, num);
+                if (literal == literal_tmp) {
+                    continue;
+                }
+                if (model[Abs(literal_tmp)] == UNDEFINED) {
+                    Correct_Literal(-literal_tmp);
+                } else if (Eval_Literal(literal_tmp) == TRUE) {
+                    Exit_With_Stat(false);
+                }
+            }
+        }
+        // 排除所在对角线
+        if (row == col) {
+            for (int i = 0; i < 9; i++) {
+                if (i == row) { // 跳过本身
+                    continue;
+                }
+                int literal_tmp = IJK_To_Literal(i, i, num);
+                if (model[Abs(literal_tmp)] == UNDEFINED) {
+                    Correct_Literal(-literal_tmp);
+                } else if (Eval_Literal(literal_tmp) == TRUE) {
+                    Exit_With_Stat(false);
+                }
+            }
+        }
+        if (col + row == 8) {
+            for (int i = 0; i < 9; i++) {
+                if (i == row) { // 跳过本身
+                    continue;
+                }
+                int literal_tmp = IJK_To_Literal(i, 8 - i, num);
+                if (model[Abs(literal_tmp)] == UNDEFINED) {
+                    Correct_Literal(-literal_tmp);
+                } else if (Eval_Literal(literal_tmp) == TRUE) {
+                    Exit_With_Stat(false);
+                }
+            }
         }
     }
 }
@@ -169,26 +260,50 @@ void Update_Weights(IntVector clause)
     }
 }
 
+void Update_Mask(int literal, bool is_push)
+{
+
+    for (int i = 0; i < clauses_contain_positive[Abs(literal)].size; i++) {
+        int clause = clauses_contain_positive[Abs(literal)].data[i];
+        num_undef_each_clause[clause] -= is_push ? 1 : -1;
+        if (literal > 0) {
+            clause_mask[clause] += is_push ? 1 : -1;
+        }
+    }
+    for (int i = 0; i < clauses_contain_negative[Abs(literal)].size; i++) {
+        int clause = clauses_contain_negative[Abs(literal)].data[i];
+        num_undef_each_clause[clause] -= is_push ? 1 : -1;
+        if (literal < 0) {
+            clause_mask[clause] += is_push ? 1 : -1;
+        }
+    }
+}
+
 void Exit_With_Stat(bool is_sat)
 {
     end_time = clock();
-
     if (is_sat) {
-        Verify();
-        // Answer_Board();
 
-        cout << "s 1" << endl
-             << "v";
+        if (is_sudoku) {
+            Answer_Board();
+        }
+        Verify();
+    }
+
+    printf("Exporting Solution File...\n");
+    if (is_sat) {
+        printf("s 1\nv");
 
     } else {
-        cout << "s 0" << endl
-             << "v";
+        printf("s 0\nv");
     }
     for (int i = 1; i <= num_vars; ++i) {
-        cout << " " << (model[i] ? i : -i);
+        printf(" %d", (model[i] ? i : -i));
     }
-    cout << endl
-         << "t " << end_time - start_time << endl;
+    printf("\nt %d\n", (int)(end_time - start_time) * 1000 / CLOCKS_PER_SEC);
+
+    Export_Solution_Res_File(is_sat);
+
     exit(0);
 }
 
@@ -223,11 +338,11 @@ void Verify()
         }
         // 如果子句中不存在真字面，则该子句为假，则子句集UNSAT，model不成立
         if (!exist_true_literal) {
-            cout << "ERROR: FALSE SAT\n";
+            printf("SAT Verification Failed! The last clause is:\n");
             for (int j = 0; j < clauses[i].size; j++) {
-                cout << clauses[i].data[j] << " ";
+                printf("%d ", clauses[i].data[j]);
             }
-            cout << endl;
+            printf("\n");
             exit(1);
         }
     }
@@ -296,20 +411,8 @@ void DPLL()
                 model[Abs(literal)] = UNDEFINED;           // 回溯时，将字面设为未确定
                 pop_IntStack(&backtrack_stack);            // 回溯栈弹出字面
 
-                for (int i = 0; i < clauses_contain_positive[Abs(literal)].size; i++) {
-                    int clause = clauses_contain_positive[Abs(literal)].data[i];
-                    num_undef_each_clause[clause]++;
-                    if (literal > 0) {
-                        clause_mask[clause]--;
-                    }
-                }
-                for (int i = 0; i < clauses_contain_negative[Abs(literal)].size; i++) {
-                    int clause = clauses_contain_negative[Abs(literal)].data[i];
-                    num_undef_each_clause[clause]++;
-                    if (literal < 0) {
-                        clause_mask[clause]--;
-                    }
-                }
+                bool is_push = false;
+                Update_Mask(literal, is_push); // 更新子句确定标志
             }
 
             pop_IntStack(&backtrack_stack);         // 弹出DECISION_MARK
@@ -322,7 +425,7 @@ void DPLL()
             // 若出现冲突，则代表该字面无论真假都会导致冲突，则需要回溯到更早的DECISION_MARK
             // 若不会冲突，则代表可以做新的决策
 
-            // // debug
+            // debug
             // printf("%16s", "backtrack: ");
             // debug_IntStack(&backtrack_stack);
 
@@ -358,10 +461,27 @@ void Preprocess_Unit_Clause()
 
 int IJK_To_Literal(int row, int col, int num)
 {
+    // row~[0, 8], col~[0, 8], num~[1, 9]
     if (num > 0)
         return (row * 9 + col) * 9 + num;
     else
         return -(row * 9 + col) * 9 + num;
+}
+
+int Literal_To_IJK(int literal, int *row, int *col, int *num)
+{
+    bool is_positive = (literal > 0);
+    literal = Abs(literal); // 确保使用正字面
+    *num = (literal % 9 == 0) ? 9 : literal % 9;
+    int idx = (literal - *num) / 9;
+    *col = idx % 9;
+    *row = idx / 9;
+    if (!is_positive) {
+        *num = -*num;
+    }
+    int ret = *row * 100 + *col * 10 + Abs(*num);
+    ret = (is_positive) ? ret : -ret;
+    return ret;
 }
 
 int Eval_Cell(int row, int col)
@@ -571,34 +691,77 @@ void Print_Board()
 {
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
+            if (j == 3 || j == 6) {
+                printf("| ");
+            }
             printf("%d ", board[i][j]);
         }
         printf("\n");
+        if (i == 2 || i == 5) {
+            printf("------+-------+------\n");
+        }
     }
 }
 
 void Answer_Board()
 {
+    printf("-----------------------\n");
+    printf("Answer:\n");
+    printf("-----------------------\n");
+
     for (int i = 0; i < 9; i++) {
         for (int j = 0; j < 9; j++) {
+            if (j == 3 || j == 6) {
+                printf("| ");
+            }
             printf("%d ", Eval_Cell(i, j));
         }
         printf("\n");
+        if (i == 2 || i == 5) {
+            printf("------+-------+------\n");
+        }
     }
+
+    printf("\n");
 }
 
-int main(int argc, char *argv[])
+void Export_Solution_Res_File(bool is_sat)
 {
-    // Sudoku
-    // Read_Board_From_File("tstsudoku.txt");
-    // Print_Board();
-    // printf("\n");
-    // char *filename = "tst.cnf";
-    // Board_To_CNF(filename);
+    // 记录时间
+    int elapsed_time = (int)(end_time - start_time) / CLOCKS_PER_SEC;
 
-    char *filename = argv[1];
-    // 读取SAT问题文件，并初始化其他必要的变量
-    Create_CNF_From_File(filename);
+    FILE *fp = fopen("solution.res", "w");
+    if (fp == NULL) {
+        printf("Error: cannot create file\n");
+        exit(1);
+    }
+
+    if (is_sat) {
+        fprintf(fp, "s 1\nv");
+        for (int i = 1; i <= num_vars; ++i) {
+            fprintf(fp, " %d", (model[i] ? i : -i));
+        }
+    } else {
+        fprintf(fp, "s 0\nv");
+    }
+    fprintf(fp, "\nt %d", elapsed_time);
+}
+
+int main(int argc, const char *argv[])
+{
+
+    if (argc > 1) { // 读取SAT问题文件，并初始化其他必要的变量
+        const char *filename = argv[1];
+        Create_CNF_From_File(filename);
+    } else { // Sudoku
+        is_sudoku = true;
+        Read_Board_From_File("tstsudoku.txt");
+        Print_Board();
+        printf("\n");
+        const char *filename = "tst.cnf";
+        Board_To_CNF(filename);
+        Create_CNF_From_File(filename);
+    }
 
     Init_IntStack(&backtrack_stack); // 初始化回溯栈
 
