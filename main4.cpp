@@ -7,16 +7,8 @@
 #include <stdlib.h>
 #include <time.h>
 
-#include "myIntStack.h"
-#include "myIntVector.h"
+#include "Global.h"
 
-#define Weight_Increment 1.0
-#define Weight_Update 1000
-#define DECISION_MARK 0
-
-#define TRUE 1
-#define FALSE 0
-#define UNDEFINED -1
 
 using namespace std;
 
@@ -35,24 +27,26 @@ int idx_next_literal;             // 指向下一个从回溯栈中传播的字�
 double *positive_literal_weights; // 正字面权重
 double *negative_literal_weights; // 负字面权重
 clock_t start_time, end_time;     // 计时器
+int elapse_time;                  // 运行时间
 
 bool is_sudoku = false; // 是否为数独
 char board[9][9] = {0}; // 数独
 
-void Print_Board();
-void Answer_Board();
-void Verify();
-void Update_Mask(int literal, bool is_push);
-int IJK_To_Literal(int row, int col, int num);
-int Literal_To_IJK(int literal, int *row, int *col, int *num);
-void Exit_With_Stat(bool is_sat);
-void Export_Solution_Res_File(bool is_sat);
-
+/**
+ * @brief 取正
+ * @param literal 字面
+ * @return int 正值
+ */
 int Abs(int literal)
 {
     return (literal > 0) ? literal : -literal;
 }
 
+/**
+ * @brief 从cnf文件创建子句集
+ * @param filename 文件名
+ * @return void
+ */
 void Create_CNF_From_File(const char *filename)
 {
     // 打开文件
@@ -119,6 +113,11 @@ void Create_CNF_From_File(const char *filename)
     conflicts = 0;
 }
 
+/**
+ * @brief 判断当前model下该literal真假
+ * @param literal 字面
+ * @return bool 真假
+ */
 int Eval_Literal(int literal)
 {
     if (literal > 0) {
@@ -132,6 +131,11 @@ int Eval_Literal(int literal)
     }
 }
 
+/**
+ * @brief 将该literal确定为真，并压入回溯栈。若为数独环境，则还会将该字面所在行、列、块、对角线的候选值设为FALSE
+ * @param literal 字面
+ * @return void
+ */
 void Correct_Literal(int literal)
 {
     push_IntStack(&backtrack_stack, literal);
@@ -238,6 +242,10 @@ void Correct_Literal(int literal)
     }
 }
 
+/**
+ * @brief 更新冲突的子句中的字面对应的权重
+ * @return void
+ */
 void Update_Weights(IntVector clause)
 {
     conflicts++;
@@ -282,6 +290,8 @@ void Update_Mask(int literal, bool is_push)
 void Exit_With_Stat(bool is_sat)
 {
     end_time = clock();
+    elapse_time = (int)(end_time - start_time) * 1000 / CLOCKS_PER_SEC;
+
     if (is_sat) {
 
         if (is_sudoku) {
@@ -293,14 +303,14 @@ void Exit_With_Stat(bool is_sat)
     printf("Exporting Solution File...\n");
     if (is_sat) {
         printf("s 1\nv");
+        for (int i = 1; i <= num_vars; ++i) {
+        printf(" %d", (model[i] ? i : -i));
+    }
 
     } else {
         printf("s 0\nv");
     }
-    for (int i = 1; i <= num_vars; ++i) {
-        printf(" %d", (model[i] ? i : -i));
-    }
-    printf("\nt %d\n", (int)(end_time - start_time) * 1000 / CLOCKS_PER_SEC);
+    printf("\nt %d\n", elapse_time);
 
     Export_Solution_Res_File(is_sat);
 
@@ -727,9 +737,6 @@ void Answer_Board()
 
 void Export_Solution_Res_File(bool is_sat)
 {
-    // 记录时间
-    int elapsed_time = (int)(end_time - start_time) / CLOCKS_PER_SEC;
-
     FILE *fp = fopen("solution.res", "w");
     if (fp == NULL) {
         printf("Error: cannot create file\n");
@@ -744,7 +751,7 @@ void Export_Solution_Res_File(bool is_sat)
     } else {
         fprintf(fp, "s 0\nv");
     }
-    fprintf(fp, "\nt %d", elapsed_time);
+    fprintf(fp, "\nt %d", elapse_time);
 }
 
 int main(int argc, const char *argv[])

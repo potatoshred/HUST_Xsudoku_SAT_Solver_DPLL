@@ -8,11 +8,16 @@
 #define __DEBUG_INTSTACK__ 0 // 调试开关
 
 typedef struct IntStack {
-    int *data;
-    int top;
-    int capacity;
+    int *data;    // 栈的数组
+    int top;      // 栈顶指针
+    int capacity; // 栈的容量
 } IntStack;
 
+/**
+ * @brief Debug用，打印栈中元素的值
+ * @param stack 栈的指针
+ * @return void
+ */
 void debug_IntStack(IntStack *stack)
 {
     for (int i = 0; i <= stack->top; i++) {
@@ -21,6 +26,10 @@ void debug_IntStack(IntStack *stack)
     printf("\n");
 }
 
+/**
+ * @brief 创建一个IntStack，初始容量为INITIAL_CAPACITY
+ * @return IntStack* 新建的栈的指针
+ */
 IntStack *create_IntStack()
 {
     IntStack *stack = (IntStack *)malloc(sizeof(IntStack));
@@ -30,6 +39,11 @@ IntStack *create_IntStack()
     return stack;
 }
 
+/**
+ * @brief 从空指针初始化IntStack，初始容量为INITIAL_CAPACITY
+ * @param stack 栈的指针
+ * @return void
+ */
 void Init_IntStack(IntStack *stack)
 {
     stack->data = (int *)malloc(INITIAL_CAPACITY * sizeof(int));
@@ -37,11 +51,22 @@ void Init_IntStack(IntStack *stack)
     stack->capacity = INITIAL_CAPACITY;
 }
 
+/**
+ * @brief 判断IntStack是否为空
+ * @param stack 栈的指针
+ * @return int 1表示栈为空，0表示栈不为空
+ */
 int is_empty_IntStack(IntStack *stack)
 {
     return stack->top == -1;
 }
 
+/**
+ * @brief 入栈操作
+ * @param stack 栈的指针
+ * @param value 压入栈的值
+ * @return void
+ */
 void push_IntStack(IntStack *stack, int value)
 {
     if (stack->top == stack->capacity - 1) {
@@ -56,6 +81,11 @@ void push_IntStack(IntStack *stack, int value)
     }
 }
 
+/**
+ * @brief 出栈操作
+ * @param stack 栈的指针
+ * @return void
+ */
 void pop_IntStack(IntStack *stack)
 {
     if (is_empty_IntStack(stack)) {
@@ -71,7 +101,7 @@ void pop_IntStack(IntStack *stack)
 }
 
 /**
- * @brief 此为peek函数的实现，返回栈顶元素的值，但不弹出栈顶元素
+ * @brief 获取栈顶元素的值，但不弹出栈顶元素
  * @param stack 栈的指针
  * @return int 栈顶元素的值
  */
@@ -84,9 +114,13 @@ int peek_IntStack(IntStack *stack)
     return stack->data[stack->top];
 }
 
+/**
+ * @brief 销毁IntStack
+ * @param stack 栈的指针
+ * @return void
+ */
 void free_IntStack(IntStack *stack)
 {
     free(stack->data);
     free(stack);
 }
-
