@@ -7,10 +7,15 @@
 #define Weight_Increment 1.0
 #define Weight_Update 1000
 #define DECISION_MARK 0
+#define TIME_LIMIT 30 // 30 seconds
 
 #define TRUE 1
 #define FALSE 0
 #define UNDEFINED -1
+// 0: heuristic conflicts counter. 
+// 1: most appearances. 
+// 2. nearest
+int SPLIT_STRATEGY = 2; 
 
 
 // 全局变量
@@ -50,6 +55,7 @@ void Update_Weights(IntVector clause);
 int Get_Next_Decision_Literal();
 
 bool IsPropagateToConflict();
+void Learn_From_Conflict(IntVector conflict_clause);
 void DPLL();
 
 void Exit_With_Stat(bool is_sat);
