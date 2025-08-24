@@ -3,34 +3,14 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "Global.h"
-
+#include "include/Global.h"
 
 using namespace std;
-
-int *model;                          // 记录变量取值
-int *clause_mask;                    // 记录子句是否可跳过
-int *num_undef_each_clause;          // 记录每个子句中未确定变量的数量
-IntStack backtrack_stack;            // 回溯栈
-IntVector *clauses;                  // clauses[num_clauses],子句集
-IntVector *clauses_contain_positive; // clauses_contain_positive[num_vars+1]每个正字面所在的子句的集
-IntVector *clauses_contain_negative; // clauses_contain_negative[num_vars+1]每个负字面所在的子句的集
-
-int num_vars, num_clauses;        // 变元数、子句数
-int decision_level;               // 决策等级
-int conflicts;                    // 次数统计
-int idx_next_literal;             // 指向下一个从回溯栈中传播的字面
-double *positive_literal_weights; // 正字面权重
-double *negative_literal_weights; // 负字面权重
-clock_t start_time, end_time;     // 计时器
-int elapse_time;                  // 运行时间
-
-bool is_sudoku = false; // 是否为数独
-char board[9][9] = {0}; // 数独
 
 /**
  * @brief 取正
@@ -290,7 +270,7 @@ void Update_Mask(int literal, bool is_push)
 void Exit_With_Stat(bool is_sat)
 {
     end_time = clock();
-    elapse_time = (int)(end_time - start_time) * 1000 / CLOCKS_PER_SEC;
+    elapse_time = ceil((end_time - start_time) * 1000 / CLOCKS_PER_SEC);
 
     if (is_sat) {
 
@@ -304,8 +284,8 @@ void Exit_With_Stat(bool is_sat)
     if (is_sat) {
         printf("s 1\nv");
         for (int i = 1; i <= num_vars; ++i) {
-        printf(" %d", (model[i] ? i : -i));
-    }
+            printf(" %d", (model[i] ? i : -i));
+        }
 
     } else {
         printf("s 0\nv");
@@ -319,24 +299,59 @@ void Exit_With_Stat(bool is_sat)
 
 int Get_Next_Decision_Literal()
 {
-    // 遍历找到最活跃的字面（无论正/负）
-    double max_weight = 0.0;
-    int max_weight_literal = 0;
-    for (int i = 1; i <= num_vars; ++i) {
-        // 仅处理未确定变量
-        if (model[i] == UNDEFINED) {
-            if (positive_literal_weights[i] >= max_weight) {
-                max_weight = positive_literal_weights[i];
-                max_weight_literal = i;
-            }
-            if (negative_literal_weights[i] >= max_weight) {
-                max_weight = negative_literal_weights[i];
-                max_weight_literal = -i;
+    if (SPLIT_STRATEGY == 0) { // 遍历找到最活跃的字面（无论正/负）
+        double max_weight = 0.0;
+        int max_weight_literal = 0;
+        for (int i = 1; i <= num_vars; ++i) {
+            // 仅处理未确定变量
+            if (model[i] == UNDEFINED) {
+                if (positive_literal_weights[i] >= max_weight) {
+                    max_weight = positive_literal_weights[i];
+                    max_weight_literal = i;
+                }
+                if (negative_literal_weights[i] >= max_weight) {
+                    max_weight = negative_literal_weights[i];
+                    max_weight_literal = -i;
+                }
             }
         }
+        // 返回最活跃的变量，或如果没有未确定变量，则返回0
+        return max_weight_literal;
+    } else if (SPLIT_STRATEGY == 1) {
+        int max_appearances = 0;
+        int max_appearances_literal = 0;
+        for (int i = 1; i <= num_vars; ++i) {
+            // 仅处理未确定变量
+            if (model[i] == UNDEFINED) {
+                int positive_appearances = clauses_contain_positive[i].size;
+                int negative_appearances = clauses_contain_negative[i].size;
+                if (positive_appearances + negative_appearances > max_appearances) {
+                    max_appearances = positive_appearances + negative_appearances;
+                    max_appearances_literal = i;
+                }
+            }
+        }
+        return max_appearances_literal;
+    } else if (SPLIT_STRATEGY == 2) {
+        int nearest_literal = 0;
+        // for (int i = 1; i <= num_vars; ++i) {
+        //     if (model[i] == UNDEFINED) {
+        //         nearest_literal = i;
+        //         break;
+        //     }
+        // }
+
+        // 倒序
+
+        for (int i = num_vars; i >= 1; i--) {
+            if (model[i] == UNDEFINED) {
+                nearest_literal = i;
+                break;
+            }
+        }
+        return nearest_literal;
     }
-    // 返回最活跃的变量，或如果没有未确定变量，则返回0
-    return max_weight_literal;
+    return 0;
 }
 
 void Verify()
@@ -458,12 +473,30 @@ void DPLL()
 void Preprocess_Unit_Clause()
 {
     for (int i = 0; i < num_clauses; i++) {
+        // 单子句规则
         if (clauses[i].size == 1) {
             int unit_literal = clauses[i].data[0];
             if (Eval_Literal(unit_literal) == UNDEFINED) {    // 该字面未确定
                 Correct_Literal(unit_literal);                // 将字面设为真
             } else if (Eval_Literal(unit_literal) == FALSE) { // 说明出现过相反的单子句
                 Exit_With_Stat(false);
+            }
+        }
+        // 纯文字规则
+        for (int i = 1; i <= num_vars; i++) {
+            // 只出现负字面
+            if (model[i] == UNDEFINED) {
+                if (clauses_contain_positive[i].size == 0 && clauses_contain_negative[i].size > 0) {
+                    if (model[i] == UNDEFINED) {
+                        Correct_Literal(-i);
+                    }
+                }
+                // 只出现正字面
+                else if (clauses_contain_positive[i].size > 0 && clauses_contain_negative[i].size == 0) {
+                    if (model[i] == UNDEFINED) {
+                        Correct_Literal(i);
+                    }
+                }
             }
         }
     }
@@ -539,11 +572,11 @@ void Read_Board_From_File(const char *filename)
     }
 }
 
-void Board_To_CNF(const char *filename)
+void Board_To_CNF(int board[9][9], const char *out_filename)
 {
-    FILE *fp = fopen(filename, "w");
+    FILE *fp = fopen(out_filename, "w");
     if (fp == NULL) {
-        printf("Error: cannot open file %s\n", filename);
+        printf("Error: cannot open file %s\n", out_filename);
         exit(1);
     }
     // 预留一行p
@@ -724,7 +757,8 @@ void Answer_Board()
             if (j == 3 || j == 6) {
                 printf("| ");
             }
-            printf("%d ", Eval_Cell(i, j));
+            board_ans[i][j] = Eval_Cell(i, j);
+            printf("%d ", board_ans[i][j]);
         }
         printf("\n");
         if (i == 2 || i == 5) {
@@ -754,8 +788,42 @@ void Export_Solution_Res_File(bool is_sat)
     fprintf(fp, "\nt %d", elapse_time);
 }
 
+void Add_Clause(IntVector *new_clause)
+{
+    for (int i = 0; i < (*new_clause).size; i++) {
+        int literal = (*new_clause).data[i];
+        clauses[num_clauses].data[i] = literal;
+    }
+    num_clauses++;
+}
+void Learn_From_Conflict(IntVector conflict_clause)
+{
+    IntVector *new_clause = create_IntVector();
+
+    // 找出导致冲突的字面
+    for (int i = 0; i < conflict_clause.size; i++) {
+        int literal = conflict_clause.data[i];
+        if (Eval_Literal(literal) == FALSE) {
+            // 添加其否定到新子句中
+            push_back_IntVector(new_clause, -literal);
+        }
+    }
+
+    // 如果新子句有效，则添加到子句集
+    if ((*new_clause).size > 0) {
+        // 将新子句添加到子句库
+        Add_Clause(new_clause);
+    }
+}
+
 int main(int argc, const char *argv[])
 {
+    // parse command line options
+    if (argc == 1) {
+        // gui
+    } else {
+        // cli
+    }
 
     if (argc > 1) { // 读取SAT问题文件，并初始化其他必要的变量
         const char *filename = argv[1];
@@ -766,7 +834,7 @@ int main(int argc, const char *argv[])
         Print_Board();
         printf("\n");
         const char *filename = "tst.cnf";
-        Board_To_CNF(filename);
+        Board_To_CNF(board, filename);
         Create_CNF_From_File(filename);
     }
 

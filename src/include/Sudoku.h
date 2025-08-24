@@ -6,7 +6,7 @@
 #include <time.h>
 
 
-// Fisher-Yates Ï´ÅÆËã·¨À´Ëæ»ú´òÂÒÊı×é
+// Fisher-Yates æ´—ç‰Œç®—æ³•æ¥éšæœºæ‰“ä¹±æ•°ç»„
 void Shuffle(int arr[], int n)
 {
     srand(time(0));
@@ -18,7 +18,7 @@ void Shuffle(int arr[], int n)
     }
 }
 
-// ¼ì²éÊı×ÖÔÚ¸ÃĞĞÊÇ·ñºÏ·¨
+// æ£€æŸ¥æ•°å­—åœ¨è¯¥è¡Œæ˜¯å¦åˆæ³•
 bool Conflict_Row(int board[9][9], int row, int num)
 {
     for (int col = 0; col < 9; col++) {
@@ -29,7 +29,7 @@ bool Conflict_Row(int board[9][9], int row, int num)
     return false;
 }
 
-// ¼ì²éÊı×ÖÔÚ¸ÃÁĞÊÇ·ñºÏ·¨
+// æ£€æŸ¥æ•°å­—åœ¨è¯¥åˆ—æ˜¯å¦åˆæ³•
 bool Conflict_Col(int board[9][9], int col, int num)
 {
     for (int row = 0; row < 9; row++) {
@@ -40,7 +40,7 @@ bool Conflict_Col(int board[9][9], int col, int num)
     return false;
 }
 
-// ¼ì²éÊı×ÖÔÚ¸Ã3x3¹¬¸ñÊÇ·ñºÏ·¨
+// æ£€æŸ¥æ•°å­—åœ¨è¯¥3x3å®«æ ¼æ˜¯å¦åˆæ³•
 bool Conflict_Block(int board[9][9], int startRow, int startCol, int num)
 {
     for (int row = 0; row < 3; row++) {
@@ -55,9 +55,9 @@ bool Conflict_Block(int board[9][9], int startRow, int startCol, int num)
 
 bool Conflict_Cross(int board[9][9], int row, int col, int num)
 {
-    if (row + col == 8) { // ·´¶Ô½ÇÏß
+    if (row + col == 8) { // åå¯¹è§’çº¿
         for (int i_row = 0; i_row < 9; i_row++) {
-            if (i_row == row) { // Ìø¹ı±¾ĞĞ
+            if (i_row == row) { // è·³è¿‡æœ¬è¡Œ
                 continue;
             }
             if (board[i_row][8 - i_row] == num) {
@@ -65,9 +65,9 @@ bool Conflict_Cross(int board[9][9], int row, int col, int num)
             }
         }
         return false;
-    } else if (row == col) { // Õı¶Ô½ÇÏß
+    } else if (row == col) { // æ­£å¯¹è§’çº¿
         for (int i_row = 0; i_row < 9; i_row++) {
-            if (i_row == row) { // Ìø¹ı±¾ĞĞ
+            if (i_row == row) { // è·³è¿‡æœ¬è¡Œ
                 continue;
             }
             if (board[i_row][i_row] == num) {
@@ -75,12 +75,12 @@ bool Conflict_Cross(int board[9][9], int row, int col, int num)
             }
         }
         return false;
-    } else { // ²»ÔÚ¶Ô½ÇÏß
+    } else { // ä¸åœ¨å¯¹è§’çº¿
         return false;
     }
 }
 
-// ¼ì²éÄÜ·ñÔÚÖ¸¶¨Î»ÖÃ·ÅÖÃÊı×Ö
+// æ£€æŸ¥èƒ½å¦åœ¨æŒ‡å®šä½ç½®æ”¾ç½®æ•°å­—
 bool Fillable(int board[9][9], int row, int col, int num)
 {
     return !Conflict_Row(board, row, num) &&
@@ -89,7 +89,7 @@ bool Fillable(int board[9][9], int row, int col, int num)
            !Conflict_Block(board, row - row % 3, col - col % 3, num);
 }
 
-// »ØËİ·¨Éú³ÉÍêÕûµÄÊı¶À
+// å›æº¯æ³•ç”Ÿæˆå®Œæ•´çš„æ•°ç‹¬
 bool Fill_Board(int board[9][9], int row, int col)
 {
     if (row == 9 - 1 && col == 9) {
@@ -119,7 +119,7 @@ bool Fill_Board(int board[9][9], int row, int col)
     return false;
 }
 
-// ³õÊ¼»¯9x9¿ÕÊı¶À
+// åˆå§‹åŒ–9x9ç©ºæ•°ç‹¬
 void Init_Board(int board[9][9])
 {
     for (int row = 0; row < 9; row++) {
@@ -129,7 +129,7 @@ void Init_Board(int board[9][9])
     }
 }
 
-// Ëæ»úÍÚ¶´
+// éšæœºæŒ–æ´
 void Dig(int board[9][9], int num_holes)
 {
     srand(time(0));
@@ -143,7 +143,7 @@ void Dig(int board[9][9], int num_holes)
     }
 }
 
-// ´òÓ¡Êı¶À
+// æ‰“å°æ•°ç‹¬
 void print_board(int board[9][9])
 {
     for (int row = 0; row < 9; row++) {
@@ -161,27 +161,27 @@ void Generate_XSudoku_And_Answer(int board[9][9], int given, int board_answer[9]
 {
     Init_Board(board_answer);
 
-    // µÚÒ»ĞĞËæ»úÉú³É1-9µÄÅÅÁĞ
+    // ç¬¬ä¸€è¡Œéšæœºç”Ÿæˆ1-9çš„æ’åˆ—
     int first_row[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
     Shuffle(first_row, 9);
 
-    // ½«Ëæ»úÅÅÁĞµÄµÚÒ»ĞĞÌîÈëÊı¶À
+    // å°†éšæœºæ’åˆ—çš„ç¬¬ä¸€è¡Œå¡«å…¥æ•°ç‹¬
     for (int col = 0; col < 9; col++) {
         board_answer[0][col] = first_row[col];
     }
 
-    // Ê¹ÓÃ»ØËİ·¨Éú³ÉÊ£ÓàÊı¶À
+    // ä½¿ç”¨å›æº¯æ³•ç”Ÿæˆå‰©ä½™æ•°ç‹¬
     Fill_Board(board_answer, 0, 9);
 
-    // ¿½±´
+    // æ‹·è´
     for(int row = 0; row < 9; row++) {
         for(int col = 0; col < 9; col++) {
             board[row][col] = board_answer[row][col];
         }
     }
     
-    // Ëæ»úÍÚ¶´
-    int num_holes = 9 * 9 - given; // 40¸ö¿ÕÎ»
+    // éšæœºæŒ–æ´
+    int num_holes = 9 * 9 - given; // 40ä¸ªç©ºä½
     Dig(board, num_holes);
 
 }
